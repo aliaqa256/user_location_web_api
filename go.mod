@@ -3,6 +3,7 @@ module github.com/aliaqa256/user_location_web_api
 go 1.19
 
 require (
+	github.com/go-redis/redis/v7 v7.4.1
 	github.com/gofiber/fiber/v2 v2.37.1
 	github.com/joho/godotenv v1.4.0
 	github.com/lib/pq v1.10.7

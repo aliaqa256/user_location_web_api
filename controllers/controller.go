@@ -1,6 +1,11 @@
 package controllers
 
 import (
+	// "fmt"
+	"fmt"
+	"time"
+
+	"github.com/aliaqa256/user_location_web_api/cache"
 	"github.com/aliaqa256/user_location_web_api/models"
 	"github.com/gofiber/fiber/v2"
 )
@@ -83,27 +88,44 @@ func AddUserInfoHandler(c *fiber.Ctx) error {
 func GetLastLocationHandler(c *fiber.Ctx) error {
 	modelApp := models.NewApplication()
 	var payload  struct {
-			Id int `json:"id ,omitempty"`
-	UserId int `json:"user_id"`
-	Longitude float64 `json:"longitude"`
-	Latitude float64 `json:"latitude"`
-	Speed float64 `json:"speed"`
-	Created_at string `json:"created_at,omitempty"`
+		Id int `json:"id ,omitempty"`
+		UserId int `json:"user_id"`
+		Longitude float64 `json:"longitude"`
+		Latitude float64 `json:"latitude"`
+		Speed float64 `json:"speed"`
+		Created_at string `json:"created_at,omitempty"`
 	}
-	id := c.Params("id")
-	getLastLocationSql := `SELECT * FROM user_info WHERE user_id = $1 ORDER BY id DESC LIMIT 1`
-	err := modelApp.DB.QueryRow(getLastLocationSql, id).Scan(&payload.Id,&payload.UserId,&payload.Longitude,&payload.Latitude,&payload.Speed,&payload.Created_at)
-	if err != nil {
-		return c.Status(400).JSON(fiber.Map{
-			"ok":      false,
-			"message": "error getting last location",
+	id:=c.Params("id")
+	// chck if data is in cache if yes return it if no get it from db and store it in cache
+	cacheApp:=cache.NewRedisCache("localhost:6379", 0, 10*time.Second)
+	data,isany:=cacheApp.Get(id)
+	if isany {
+		fmt.Println("data is in cache")
+		return c.Status(200).JSON(fiber.Map{
+			"ok":      true,
+			"message": "user info retrieved successfully",
+			"data": data,
+		})
+	}else{
+		fmt.Println("data is not in cache")
+		getLastLocationSql := `SELECT * FROM user_info WHERE user_id = $1 ORDER BY id DESC LIMIT 1`
+		err := modelApp.DB.QueryRow(getLastLocationSql, id).Scan(&payload.Id,&payload.UserId,&payload.Longitude,&payload.Latitude,&payload.Speed,&payload.Created_at)
+		if err != nil {
+			return c.Status(400).JSON(fiber.Map{
+				"ok":      false,
+				"message": "error getting last location",
+			})
+		}
+		// store data in cache
+		cacheApp.Set(id,payload)
+		return c.Status(200).JSON(fiber.Map{
+			"ok":      true,
+			"message": "last location retrieved successfully",
+			"payload": payload,
 		})
 	}
-	return c.Status(200).JSON(fiber.Map{
-		"ok":      true,
-		"message": "last location retrieved successfully",
-		"payload": payload,
-	})
+
+
 	
 }
 
@@ -116,12 +138,12 @@ func GetPastLocationsHandler(c *fiber.Ctx) error {
 	}
 
 	type Info struct {
-			Id int `json:"id ,omitempty"`
-	UserId int `json:"user_id"`
-	Longitude float64 `json:"longitude"`
-	Latitude float64 `json:"latitude"`
-	Speed float64 `json:"speed"`
-	Created_at string `json:"created_at,omitempty"`
+		Id int `json:"id ,omitempty"`
+		UserId int `json:"user_id"`
+		Longitude float64 `json:"longitude"`
+		Latitude float64 `json:"latitude"`
+		Speed float64 `json:"speed"`
+		Created_at string `json:"created_at,omitempty"`
 	}
 
 	var info = Info{}
@@ -133,12 +155,23 @@ func GetPastLocationsHandler(c *fiber.Ctx) error {
 			"message": "error decoding request body",
 		})
 	}
+	cacheApp:=cache.NewRedisCache("localhost:6379", 0, 10*time.Second)
+	data,isany:=cacheApp.Get( fmt.Sprintf("%v_past",payload.UserId))
+	if isany {
+		fmt.Println("data is in cache")
+		return c.Status(200).JSON(fiber.Map{
+			"ok":      true,
+			"message": "user info retrieved successfully",
+			"payload": data,
+		})
+	}else{
+		fmt.Println("data is not in cache")
 	getPastLocationsSql := `SELECT * FROM user_info WHERE user_id = $1 AND created_at BETWEEN $2 AND $3`
 	rows, err := modelApp.DB.Query(getPastLocationsSql, payload.UserId,payload.StartTime,payload.EndTime)
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{
 			"ok":      false,
-			"message": "error getting past locations",
+			"payload": "error getting past locations",
 		})
 	}
 	defer rows.Close()
@@ -152,10 +185,13 @@ func GetPastLocationsHandler(c *fiber.Ctx) error {
 		}
 		infoArray = append(infoArray, info)
 	}
+
+	// store data in cache
+	cacheApp.Set(fmt.Sprintf("%v_past",payload.UserId),infoArray)
 	return c.Status(200).JSON(fiber.Map{
 		"ok":      true,
 		"message": "past locations retrieved successfully",
 		"payload": infoArray,
 	})
-	
+}
 }
