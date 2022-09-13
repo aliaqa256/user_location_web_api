@@ -4,7 +4,9 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"os"
 
+	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 )
 
@@ -80,10 +82,16 @@ func (app *application)Migrate() {
 
 var singularModelApp *application = nil
 func NewApplication() *application {
+	
 	if singularModelApp == nil {
+		err := godotenv.Load(".env")
+		if err != nil {
+			panic("Error loading .env file")
+		}
+		dbstr := os.Getenv("DB_STR")
 		app := &application{
 			config: config{
-				dbStr: "host=localhost port=5432 user=postgres password=password dbname=postgres sslmode=disable",
+				dbStr: dbstr,
 			},
 		}
 		singularModelApp = app
