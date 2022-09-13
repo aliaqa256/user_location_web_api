@@ -1,13 +1,14 @@
 package controllers
 
 import (
-	// "fmt"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/aliaqa256/user_location_web_api/cache"
 	"github.com/aliaqa256/user_location_web_api/models"
 	"github.com/gofiber/fiber/v2"
+	"github.com/joho/godotenv"
 )
 
 
@@ -97,7 +98,12 @@ func GetLastLocationHandler(c *fiber.Ctx) error {
 	}
 	id:=c.Params("id")
 	// chck if data is in cache if yes return it if no get it from db and store it in cache
-	cacheApp:=cache.NewRedisCache("localhost:6379", 0, 10*time.Second)
+	err := godotenv.Load(".env")
+	if err != nil {
+		panic(err)
+	}
+	redisHost := os.Getenv("REDIS_URI")
+	cacheApp:=cache.NewRedisCache(redisHost, 0, 10*time.Second)
 	data,isany:=cacheApp.Get(id)
 	if isany {
 		fmt.Println("data is in cache")
@@ -155,7 +161,12 @@ func GetPastLocationsHandler(c *fiber.Ctx) error {
 			"message": "error decoding request body",
 		})
 	}
-	cacheApp:=cache.NewRedisCache("localhost:6379", 0, 10*time.Second)
+	err = godotenv.Load(".env")
+	if err != nil {
+		panic(err)
+	}
+	redisHost := os.Getenv("REDIS_URI")
+	cacheApp:=cache.NewRedisCache(redisHost, 0, 10*time.Second)
 	data,isany:=cacheApp.Get( fmt.Sprintf("%v_past",payload.UserId))
 	if isany {
 		fmt.Println("data is in cache")
